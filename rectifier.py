@@ -93,12 +93,12 @@ class Rectifier:
             print("Command NOT sent")
 
     # CAN message receiver
-    def receive_can_message(channel , echo=true):
+    def receive_can_message(channel , echo=True):
         try:
             with can.interface.Bus(receive_own_messages=True, bustype='socketcan', channel=channel, bitrate=BITRATE) as bus:
                 #print_listener = can.Printer()
                 #can.Notifier(bus, [print_listener])
-                if echo is true:
+                if echo is True:
                     can.Notifier(bus, [can_listener_print])
                 else:
                     can.Notifier(bus, [can_listener_store])
@@ -282,13 +282,13 @@ if __name__ == "__main__":
                     help='Input Current Limit of the Charger (useful in case of e.g. small Diesel Generator, weak Grid, Grid Peak Power Shawing, ...)')
 
     parser.add_argument('-we' , '--walk_in_enable' , type=bool,
-                    help='Enable Ramp up the Rectifier Output Voltage to the set Voltage Value (true/false)')
+                    help='Enable Ramp up the Rectifier Output Voltage to the set Voltage Value (True/False)')
 
     parser.add_argument('-wt' , '--walk_in_time' , type=float,
                     help='Time to Ramp up the Rectifier Output Voltage to the set Voltage Value (in seconds)')
 
     parser.add_argument('-r' , '--restart_overvoltage' , type=bool,
-                    help='Restart after Overvoltage Event (true/false)')
+                    help='Restart after Overvoltage Event (True/False)')
 
     parser.add_argument('-p', '--permanent', action='store_true',
                     help='Make settings permanent')
@@ -317,12 +317,12 @@ if __name__ == "__main__":
             rectifier.set_current_percentage(args.interface, args.current_percent, args.permanent)
         if args.limit_input is not None:
             rectifier.limit_input(args.interface , args.limit_input)
-        if args.walk_in_enable is true and args.walk_in_time is not None:
+        if args.walk_in_enable is True and args.walk_in_time is not None:
             rectifier.walk_in(args.interface , args.walk_in_time , args.walk_in_enable)
     
     # Get Values ?
     elif args.mode== "get":
-        rectifier.receive_can_message(args.interface , echo:=true)
+        rectifier.receive_can_message(args.interface , echo:=True)
 
     # Delete Object
     del rectifier
