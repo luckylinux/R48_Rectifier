@@ -44,15 +44,35 @@ class Rectifier:
     OUTPUT_VOLTAGE_MAX = 58.5
     OUTPUT_CURRENT_MIN = 5.5 # 10%, rounded up to nearest 0.5A
     OUTPUT_CURRENT_MAX = OUTPUT_CURRENT_RATED_VALUE
+    TEMPERATURE_MIN = -40 # Minimum Plausible Temperature (in °C) when Reading Data
+    TEMPERATURE_MAX = 60 # Maximum Plausible Temperature (in °C) when Reading Data
+    INPUT_VOLTAGE_MIN = -40 # Minimum Plausible Input Voltage (in VAC / VRMS) when Reading Data
+    INPUT_VOLTAGE_MAX = 60 # Maximum Plausible Input Voltage (in VAC / VRMS) when Reading Data
+
+    # Thresholds when reading and evaluating data
+    MAX_COUNT_UNCHANGED_DATA = 32
+    MAX_COUNT_INVALID_DATA = 32
 
     # Interface Property
     Interface
 
-    # Store Readout
+    # Store Readout for automatic get in internal loop
     Readout
 
-    # Store Settings
-    #Settings
+    # Store Settings for automating set in internal loop
+    Settings
+
+    # Counter for invalid Data
+    Counter_Invalid
+
+    # Counter for unchanged Data
+    Counter_Unchanged
+
+    # Status of the Charger
+    Status
+
+    # Operating Mode of the Charger - ['Voltage', 'Current_Limiting']
+    Mode
 
     # Class Constructor
     def __init__(self , channel):
@@ -62,8 +82,17 @@ class Rectifier:
         # Initialise Readout Storage
         self.Readout = namedtuple('Readout', ['Output_Voltage', 'Output_Current_Value' , 'Output_Current_Limit' , 'Temperature' , 'Input_Voltage'])
 
+        # Initialise Counter for Invalid Data being Read from the Charger
+        self.Counter_Invalid = namedtuple('Counter_Invalid', ['Output_Voltage', 'Output_Current_Value' , 'Output_Current_Limit' , 'Temperature' , 'Input_Voltage'])
+
+        # Initialise Status for Data being Read from the Charger
+        self.Status = namedtuple('Status', ['Output_Voltage', 'Output_Current_Value' , 'Output_Current_Limit' , 'Temperature' , 'Input_Voltage'])
+
+        # Initialise Counter for Unchanged Data being Read from the Charger
+        self.Counter_Unchanged = namedtuple('Counter_Unchanged', ['Output_Voltage', 'Output_Current_Value' , 'Output_Current_Limit' , 'Temperature' , 'Input_Voltage'])
+
         # Initialise Settings Storage
-        #self.Settings
+        self.Settings = namedtuple('Settings', ['Output_Voltage', 'Output_Current_Limit' , 'Walk_In_Enable' , 'Walk_In_Time' , 'Restart_Overvoltage'])
 
         # Do nothing for now
         #pass
@@ -150,14 +179,62 @@ class Rectifier:
             # Check what data it is
             match msg.data[3] :
                 case 0x01:
-                    self.Readout.Output_Voltage = val
+                    if val < OUTPUT_VOLTAGE_MIN:
+                        # Output Voltage is too LOW - Increment Invalid Counter
+                        self.Counter_Invalid.Output_Voltage += 1
+
+                        # Set Status Message
+                        if self.Counter_Invalid.Output_Voltage >= MAX_COUNT_INVALID_DATA:
+                            self.Status.Output_Voltage = 'LOW'
+                    if val > OUTPUT_VOLTAGE_MAX:
+                        # Output Voltage is too HIGH - Increment Invalid Counter
+                        self.Counter_Invalid.Output_Voltage += 1
+
+                        # Set Status Message
+                        if self.Counter_Invalid.Output_Voltage >= MAX_COUNT_INVALID_DATA:
+                            self.Status.Output_Voltage = 'HIGH'
+                    else:
+                        if val == self.Readout.Output_Voltage:
+                            # Output Voltage is in OK Range but same as last time - Increment Unchanged Counter
+                            self.Counter_Unchanged.Output_Voltage += 1
+
+                            # Set Status Message
+                            if self.Counter_Unchanged.Output_Voltage >= MAX_COUNT_UNCHANGED_DATA:
+                                self.Status.Output_Voltage = 'STUCK'
+                            
+                        else:
+                            # Register Timestamp of when the newest (different) value was received
+                            self.Received_Timestamps.Output_Voltage = unixtime
+
+                            # Store Readout 
+                            self.Readout.Output_Voltage = val
+
+                            # Set Status Message
+                            self.Status.Output_Voltage = 'OK'
+
+                            # Reset Unchanged Counter
+                            self.Counter_Unchanged = 0
+
+                    
+
                 case 0x02:
+                    if val >=OUTPUT_CURRENT_MIN and val <OUTPUT_CURRENT_MAX and val != self.Readout.Output_Current_Value:
+                           self.Received_Timestamps.Output_Current_Value = unixtime
                     self.Readout.Output_Current_Value = val
+                        
                 case 0x03:
+                    if val >=OUTPUT_CURRENT_MIN and val <OUTPUT_CURRENT_MAX and val != self.Readout.Output_Current_Limit:
+                           self.Received_Timestamps.Output_Current_Limit = unixtime
                     self.Readout.Output_Current_Limit = val
+
                 case 0x04:
+                    if val >=TEMPERATURE_MIN and val <TEMPERATURE_MAX and val != self.Readout.Temperature:
+                           self.Received_Timestamps.Temperature = unixtime
                     self.Readout.Temperature = val
+
                 case 0x05:
+                    if val >=INPUT_VOLTAGE_MIN and val <INPUT_VOLTAGE_MAX and val ~= self.Readout.Input_Voltage:
+                           self.Received_Timestamps.Input_Voltage = unixtime
                     self.Readout.Input_Voltage = val
 
     # Get all Readout
