@@ -80,7 +80,10 @@ class Rectifier:
     Status
 
     # Operating Mode of the Charger - ['Voltage', 'Current_Limiting']
-    Mode
+    Operating_Mode
+
+    # Control Mode of the Charger - ['Voltage' , 'Power' , 'Current']
+    Control_Mode
 
     # Class Constructor
     def __init__(self , channel):
@@ -269,9 +272,9 @@ class Rectifier:
     def data_analysis():
         # Set Mode Flag
         if self.Readout['Output_Current_Value'] > 0.95*self.Readout['Output_Current_Limit']:
-            self.Mode = 'Current_Limit'
+            self.Operating_Mode = 'Current_Limit'
         else:
-            self.Mode = 'Voltage'
+            self.Operating_Mode = 'Voltage'
 
         # Calculate Output Current as a Percentage of Rated Current
         self.Postprocessing['Output_Current']['Percent_Of_Rated'] = self.Readout['Output_Current_Value']['Value']/OUTPUT_CURRENT_RATED_VALUE*100
