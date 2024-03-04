@@ -47,6 +47,7 @@ class Rectifier:
     OUTPUT_VOLTAGE_MAX = 58.5
     OUTPUT_CURRENT_MIN = 5.5 # 10%, rounded up to nearest 0.5A
     OUTPUT_CURRENT_MAX = OUTPUT_CURRENT_RATED_VALUE
+    OUTPUT_POWER_RATED = 3000 # W
     TEMPERATURE_MIN = -40 # Minimum Plausible Temperature (in °C) when Reading Data
     TEMPERATURE_MAX = 60 # Maximum Plausible Temperature (in °C) when Reading Data
     INPUT_VOLTAGE_MIN = -40 # Minimum Plausible Input Voltage (in VAC / VRMS) when Reading Data
@@ -93,7 +94,7 @@ class Rectifier:
         writeDictionnary = dict(Output_Voltage = {'Value' : 0 , 'Fixed' : False} , Output_Current_Limit = {'Value' : 0 , 'Percentage' : 0 , 'Fixed' : False} , Input_Current_Limit = {'Value' : 0 , 'Enable' : False} , Walk_In = {'Enable' : False , 'Time' : 0} , Restart_Overvoltage = {'Enable' : False})
 
         # Define Dictionnary for Postprocessing
-        postprocessingDictionnary = dict(Power_Output = {'Value' : 0})
+        postprocessingDictionnary = dict(Output_Power = {'Value' : 0 , 'Percent_Of_Rated' : 0 , 'Percent_Of_Limit' : 0} , Output_Current = {'Percent_Of_Rated' : 0 , 'Percent_Of_Limit' : 0})
 
         # Initialise Readout Storage
         self.Readout = readDictionnary
@@ -109,6 +110,9 @@ class Rectifier:
 
         # Initialise Settings Storage
         self.Settings = writeDictionnary
+
+        # Initialize Postprocessing Storage
+        self.Postprocessing = postprocessingDictionnary
 
         # Do nothing for now
         #pass
@@ -269,6 +273,21 @@ class Rectifier:
         else:
             self.Mode = 'Voltage'
 
+        # Calculate Output Current as a Percentage of Rated Current
+        self.Postprocessing['Output_Current']['Percent_Of_Rated'] = self.Readout['Output_Current_Value']['Value']/OUTPUT_CURRENT_RATED_VALUE*100
+
+        # Calculate Output Current as a Percentage of Limit Current
+        self.Postprocessing['Output_Current']['Percent_Of_Limit'] = self.Readout['Output_Current_Value']['Value']/self.Readout['Output_Current_Limit']['Value']*100
+
+        # Calculate Output_Power in Absolute Terms
+        self.Postprocessing['Output_Power']['Value'] = self.Readout['Output_Voltage']['Value'] * self.Readout['Output_Current_Value']['Value']
+
+        # Calculate Output_Power as a Percentage of Rated Power
+        self.Postprocessing['Output_Power']['Percent_Of_Rated'] = self.Postprocessing['Output_Power']['Value']/OUTPUT_POWER_RATED*100
+
+        # Calculate Output_Power as a Percentage of Limited Power
+        self.Postprocessing['Output_Power']['Percent_Of_Limit'] = self.Postprocessing['Output_Power']['Value']*self.Postprocessing['Output_Current']['Percent_Of_Limit']
+
     # CAN receiver listener (register values within an object)
     # Not really the best approach, but how to pass optional argument "echo" to CAN.Notifier in case of another solution ? 
     def can_listener_store(msg):
@@ -294,7 +313,6 @@ class Rectifier:
                 case 0x05:
                     # Input Voltage
                     self.data_processing(value_received = val , field_name = 'Input_Voltage' , value_min = INPUT_VOLTAGE_MIN , value_max = INPUT_VOLTAGE_MAX) 
-
 
 
     # Get all Readout
