@@ -123,7 +123,7 @@ class Rectifier:
     # Needs root/sudo access, or configure this part on the OS
     # Or use the setns function as sudo/root and assign this to the user namespace of the Docker/Podman Container
     # See https://github.com/luckylinux/solar-charger-emerson?tab=readme-ov-file#rootless-podman--docker
-    def config(channel):
+    def config(self):
         # Configure CAN Interface
         subprocess.call(['ip', 'link', 'set', 'down', channel])
         subprocess.call(['ip', 'link', 'set', channel, 'type', 'can', 'bitrate', str(BITRATE), 'restart-ms', '1500'])
@@ -135,7 +135,7 @@ class Rectifier:
         return bytearray.fromhex(value.lstrip('0x').rstrip('L'))
 
     # Get the bus and send data to the specified CAN bus
-    def send_can_message(channel, data):
+    def send_can_message(self , data):
         try:
             with can.interface.Bus(bustype='socketcan', channel=channel, bitrate=BITRATE) as bus:
                 msg = can.Message(arbitration_id=ARBITRATION_ID, data=data, is_extended_id=True)
@@ -145,12 +145,12 @@ class Rectifier:
             print("Command NOT sent")
 
     # CAN message receiving loop
-    def can_receive_loop(channel , echo=False):
+    def can_receive_loop(self , echo=False):
         self.receive_can_message(channel , echo)
         await asyncio.sleep(INTERVAL_RECEIVE_DATA)
-    
+
     # CAN message sender loop
-    def can_send_loop():
+    def can_send_loop(self , echo=False):
         # Set Output Voltage
         self.__set_voltage(channel = self.Interface , )
 
@@ -158,7 +158,7 @@ class Rectifier:
         if self.Settings['Output_Current_Limit']['Source'] == 'Percentage':
             # Set Output Current Limit in Percentage
             self.__set_current_percentage(channel = self.Interface , current = self.Settings['Output_Current_Limit']['Percentage'] , fixed = self.Settings['Output_Current_Limit']['Fixed']) 
-            
+
             # (Re)calculate the corresponding Value
             self.Settings['Output_Current_Limit']['Value'] = self.Settings['Output_Current_Limit']['Percentage']/OUTPUT_CURRENT_RATED_PERCENTAGE*OUTPUT_CURRENT_RATED_VALUE
         else:
@@ -167,7 +167,7 @@ class Rectifier:
 
             # (Re)calculate the corresponding Percentage
             self.Settings['Output_Current_Limit']['Percentage'] = self.Settings['Output_Current_Limit']['Value']/OUTPUT_CURRENT_RATED_VALUE*OUTPUT_CURRENT_RATED_PERCENTAGE
-        
+
         # Set Input Current Limit
         self.__limit_input(channel = self.Interface , current = self.Settings['Input_Current_Limit']['Value'])
 
@@ -181,7 +181,7 @@ class Rectifier:
         await asyncio.sleep(INTERVAL_SEND_DATA)
 
     # CAN message receiver
-    def receive_can_message(channel , echo=True):
+    def receive_can_message(self , echo=True):
         try:
             with can.interface.Bus(receive_own_messages=True, bustype='socketcan', channel=channel, bitrate=BITRATE) as bus:
                 #print_listener = can.Printer()
@@ -208,7 +208,7 @@ class Rectifier:
             print("Receive went wrong")
 
     # CAN receiver listener (print values to screen)
-    def can_listener_print(msg):
+    def can_listener_print(self, msg):
         # Is it a response to our request
         if msg.data[0] == 0x41:
             # Convert value to float (it's the same for all)
@@ -228,7 +228,7 @@ class Rectifier:
                     print("Vin (VAC) : " + str(val)) 
 
     # Data Processing Method
-    def data_processing(field_name , value_received , value_min , value_max):
+    def data_processing(self, field_name , value_received , value_min , value_max):
         # Generate UNIX Timestamp
         unixtime = time.time()
 
@@ -254,12 +254,12 @@ class Rectifier:
                 # Set Status Message
                 if self.Counter_Unchanged[field_name] >= MAX_COUNT_UNCHANGED_DATA:
                     self.Status[field_name] = 'STUCK'
-                
+
             else:
                 # Register Timestamp of when the newest (different) value was received
                 self.Received_Timestamps[field_name] = unixtime
 
-                # Store Readout 
+                # Store Readout
                 self.Readout[field_name] = value_received
 
                 # Set Status Message
@@ -269,7 +269,7 @@ class Rectifier:
                 self.Counter_Unchanged[field_name] = 0
 
     # Data Analysis Method
-    def data_analysis():
+    def data_analysis(self):
         # Set Mode Flag
         if self.Readout['Output_Current_Value'] > 0.95*self.Readout['Output_Current_Limit']:
             self.Operating_Mode = 'Current_Limit'
@@ -293,7 +293,7 @@ class Rectifier:
 
     # CAN receiver listener (register values within an object)
     # Not really the best approach, but how to pass optional argument "echo" to CAN.Notifier in case of another solution ? 
-    def can_listener_store(msg):
+    def can_listener_store(self):
         # Is it a response to our request
         if msg.data[0] == 0x41:
             # Convert value to float (it's the same for all)
@@ -319,46 +319,46 @@ class Rectifier:
 
 
     # Get all Readout
-    def get_readout(channel):
-        # Just call receive_can_message
+    def get_readout(self):
+        # Just return Everything
         return self.Readout
 
     # Get the Output Voltage Readout In VDC
     # This might be different than the set value in case the Charger is cperating in Current-Limitation 
-    def get_output_voltage(channel):
+    def get_output_voltage(self):
         # Just return the requested field
         return self.Readout['Output_Voltage']['Value']
-    
+
     # Get the Output Current Readout in ADC
     # If this value is equal (or very close) to the Output Current Limit, the Charger is most likely operating in Current-Limitation 
-    def get_output_current_value(channel):
+    def get_output_current_value(self):
         # Just return the requested field
         return self.Readout['Output_Current_Value']['Value']
 
     # Get the Output Current Limit set in ADC
     # If this value is equal (or very close) to the Output Current Value, the Charger is most likely operating in Current-Limitation 
-    def get_output_current_limit(channel):
+    def get_output_current_limit(self):
         # Just return the requested field
         return self.Readout['Output_Current_Limit']['Value']
 
     # Get the Temperature Readout of the Rectifier in °C
-    def get_temperature(channel):
+    def get_temperature(self):
         # Just return the requested field
         return self.Readout['Temperature']['Value']
 
     # Get the Input Voltage Readout in VAC
-    def get_input_voltage(channel):
+    def get_input_voltage(self):
         # Just return the requested field
         return self.Readout['Input_Voltage']['Value']
 
 
 
     # Set the Output Voltage
-    # The 'fixed' parameter 
+    # The 'fixed' parameter
     #  - if True makes the change permanent ('offline command')
     #  - if False the change is temporary (30 seconds per command received, 'online command', repeat at 15 second intervals).
     # Voltage between 41.0 and 58.5V - fan will go high below 48V!
-    def set_output_voltage(channel, voltage, fixed=False):
+    def set_output_voltage(self, voltage, fixed=False):
         self.Settings['Output_Voltage_Value']['Value'] = voltage
         self.Settings['Output_Voltage_Value']['Fixed'] = fixed
 
@@ -368,7 +368,7 @@ class Rectifier:
     # The 'fixed' parameter
     #  - if True makes the change permanent ('offline command')
     #  - if False the change is temporary (30 seconds per command received, 'online command', repeat at 15 second intervals).
-    def set_output_current_limit_percentage(channel, current, fixed=False):
+    def set_output_current_limit_percentage(self, current, fixed=False):
         self.Settings['Output_Current_Limit']['Value'] = current
         self.Settings['Output_Current_Limit']['Fixed'] = fixed
         self.Settings['Output_Current_Limit']['Source'] = 'Percentage'
@@ -378,33 +378,33 @@ class Rectifier:
     # The 'fixed' parameter
     #  - if True makes the change permanent ('offline command')
     #  - if False the change is temporary (30 seconds per command received, 'online command', repeat at 15 second intervals).
-    def set_output_current_limit_value(channel, current, fixed=False): 
+    def set_output_current_limit_value(self, current, fixed=False): 
         self.Settings['Output_Current_Limit']['Value'] = current
         self.Settings['Output_Current_Limit']['Fixed'] = fixed
         self.Settings['Output_Current_Limit']['Source'] = 'Value'
 
     # Time to ramp up the rectifiers output voltage to the set voltage value, and enable/disable
-    def set_walk_in(channel, time=0, enable=False):
+    def set_walk_in(self, time=0, enable=False):
         self.Settings['Walk_In']['Enable'] = enable
         self.Settings['Walk_In']['Time'] = time
 
     # AC input current limit (called Diesel power limit): gives the possibility to reduce the overall power of the rectifier
-    def set_input_current_limit(channel, current):
+    def set_input_current_limit(self, current):
         self.Settings['Input_Current_Limit']['Value'] = current
 
     # Restart after overvoltage enable/disable
-    def restart_overvoltage(channel, state=False):
+    def restart_overvoltage(self, state=False):
         self.Settings['Restart_After_Overvoltage']['Enable'] = state
 
 
 
     # !! Private / Internal Method !!
-    # Set the output voltage to the new value. 
-    # The 'fixed' parameter 
+    # Set the output voltage to the new value.
+    # The 'fixed' parameter
     #  - if True makes the change permanent ('offline command')
     #  - if False the change is temporary (30 seconds per command received, 'online command', repeat at 15 second intervals).
     # Voltage between 41.0 and 58.5V - fan will go high below 48V!
-    def __set_voltage(channel, voltage, fixed=False):
+    def __set_voltage(self , voltage, fixed=False):
         if OUTPUT_VOLTAGE_MIN <= voltage <= OUTPUT_VOLTAGE_MAX:
             b = float_to_bytearray(voltage)
             p = 0x21 if not fixed else 0x24
@@ -419,7 +419,7 @@ class Rectifier:
     # The 'fixed' parameter
     #  - if True makes the change permanent ('offline command')
     #  - if False the change is temporary (30 seconds per command received, 'online command', repeat at 15 second intervals).
-    def __set_current_percentage(channel, current, fixed=False):
+    def __set_current_percentage(self , current, fixed=False):
         if OUTPUT_CURRENT_RATED_PERCENTAGE_MIN <= current <= OUTPUT_CURRENT_RATED_PERCENTAGE_MAX:
             limit = current / 100
             b = float_to_bytearray(limit)
@@ -435,7 +435,7 @@ class Rectifier:
     # The 'fixed' parameter
     #  - if True makes the change permanent ('offline command')
     #  - if False the change is temporary (30 seconds per command received, 'online command', repeat at 15 second intervals).
-    def __set_current_value(channel, current, fixed=False): 
+    def __set_current_value(self , current, fixed=False):
         if OUTPUT_CURRENT_MIN <= current <= OUTPUT_CURRENT_MAX:
             # 62.5A is the nominal current of Emerson/Vertiv R48-3000e and corresponds to 121%
             percentage = (current/OUTPUT_CURRENT_RATED_VALUE)*OUTPUT_CURRENT_RATED_PERCENTAGE
@@ -445,7 +445,7 @@ class Rectifier:
 
     # !! Private / Internal Method !!
     # Time to ramp up the rectifiers output voltage to the set voltage value, and enable/disable
-    def __walk_in(channel, time=0, enable=False):
+    def __walk_in(self , time=0, enable=False):
         if not enable:
             data = [0x03, 0xF0, 0x00, 0x32, 0x00, 0x00, 0x00, 0x00]
         else:
@@ -456,14 +456,14 @@ class Rectifier:
 
     # !! Private / Internal Method !!
     # AC input current limit (called Diesel power limit): gives the possibility to reduce the overall power of the rectifier
-    def __limit_input(channel, current):
+    def __limit_input(self , current):
         b = float_to_bytearray(current)
         data = [0x03, 0xF0, 0x00, 0x1A, *b]
         send_can_message(channel, data)
 
     # !! Private / Internal Method !!
     # Restart after overvoltage enable/disable
-    def __restart_overvoltage(channel, state=False):
+    def __restart_overvoltage(self , state=False):
         if not state:
             data = [0x03, 0xF0, 0x00, 0x39, 0x00, 0x00, 0x00, 0x00]
         else:
