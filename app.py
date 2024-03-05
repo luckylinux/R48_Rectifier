@@ -1,11 +1,18 @@
-import rectifier
+from rectifier import Rectifier
 import random
 import pprint
 import time
 
 if __name__ == "__main__":
     # Setup class
-    Charger = Rectifier(channel = 'can-grid-00')
+    Charger = Rectifier(interface = 'can-grid-00')
+
+    # Set Initial Values
+    Charger.set_output_voltage(voltage = 51 , fixed = False)
+    Charger.set_output_current_limit_value(current = 50 , fixed = False)
+
+    # Run class
+    Charger.run(debug=True)
 
     # Infinite Loop
     while True:
@@ -15,12 +22,12 @@ if __name__ == "__main__":
         # Generate Random Current Limit between 5.5ADC and 50ADC
         random_current_limit = random.uniform(5.5 , 50)
 
-	# Set values
-        Charger.set_voltage(voltage = random_voltage , fixed = False)
-        Charger.set_current_value(current = random_current_limit , fixed = False)
+	    # Set values
+        Charger.set_output_voltage(voltage = random_voltage , fixed = False)
+        Charger.set_output_current_limit_value(current = random_current_limit , fixed = False)
 
         # Read values
-        pprint(Charger.get_readout())
+        pprint.pprint(Charger.get_readout())
 
-        # Wait 120 seconds
-        time.sleep(120)
+        # Wait
+        time.sleep(5)
